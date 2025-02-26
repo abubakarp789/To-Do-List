@@ -1,2 +1,2 @@
-# To-Do-List-
-To Do List in Python using Tkinter for GUI
+# To-Do-List
+To-Do List in Python using Tkinter for GUI
