@@ -1,12 +1,23 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
 from datetime import datetime
+import json
+import os
 
 class AdvancedTodoApp:
     def __init__(self, root):
         self.root = root
         self.root.title("To-Do List Application")
         self.root.geometry("400x500")
+        
+        # File paths
+        self.data_dir = os.path.join(os.path.expanduser("~"), ".todo_app")
+        self.tasks_file = os.path.join(self.data_dir, "tasks.json")
+        self.categories_file = os.path.join(self.data_dir, "categories.json")
+        
+        # Ensure data directory exists
+        if not os.path.exists(self.data_dir):
+            os.makedirs(self.data_dir)
         
         # Task storage
         self.tasks = []
@@ -41,6 +52,9 @@ class AdvancedTodoApp:
         self.update_task_list()
         self.update_category_counts()
         self.update_greeting()
+        
+        # Set up auto-save on window close
+        self.root.protocol("WM_DELETE_WINDOW", self.on_close)
 
     def create_main_layout(self):
         # Main container with shadow effect
@@ -238,6 +252,7 @@ class AdvancedTodoApp:
             self.tasks.append(task)
             self.task_listbox.insert(tk.END, task)
             self.task_var.set("")  # Clear entry
+            self.save_data()  # Save after adding task
         else:
             messagebox.showwarning("Invalid Input", "Please enter a task!")
 
@@ -248,6 +263,7 @@ class AdvancedTodoApp:
                 index = selection[0]
                 self.task_listbox.delete(index)
                 self.tasks.pop(index)
+                self.save_data()  # Save after removing task
             else:
                 messagebox.showwarning("No Selection", "Please select a task to remove!")
         except:
@@ -353,6 +369,7 @@ class AdvancedTodoApp:
             
             self.categories.append(new_category)
             self.create_category_button(new_category)
+            self.save_categories()  # Save after creating new category
 
     def show_add_task_dialog(self):
         # Create a top-level window for the dialog
@@ -403,6 +420,7 @@ class AdvancedTodoApp:
                 self.tasks.append(new_task)
                 self.update_task_list()
                 self.update_category_counts()
+                self.save_data()  # Save after adding task
                 dialog.destroy()
             else:
                 messagebox.showwarning("Invalid Input", "Please enter a task title!")
@@ -478,11 +496,74 @@ class AdvancedTodoApp:
     def bind_shortcuts(self):
         self.root.bind("<Control-n>", lambda e: self.show_add_task_dialog())
         self.root.bind("<Control-l>", lambda e: self.create_new_category())
+        self.root.bind("<Control-s>", lambda e: self.save_data())
 
     def load_data(self):
-        # Initialize with empty data for now
-        # You can implement actual data loading from a file later
-        self.tasks = []
+        """Load tasks and categories from files"""
+        try:
+            # Load tasks
+            if os.path.exists(self.tasks_file):
+                with open(self.tasks_file, 'r') as f:
+                    self.tasks = json.load(f)
+                print(f"Loaded {len(self.tasks)} tasks from {self.tasks_file}")
+            else:
+                self.tasks = []
+                print("No tasks file found, starting with empty tasks list")
+            
+            # Load categories
+            if os.path.exists(self.categories_file):
+                with open(self.categories_file, 'r') as f:
+                    self.categories = json.load(f)
+                print(f"Loaded {len(self.categories)} categories from {self.categories_file}")
+            else:
+                # Default categories if file doesn't exist
+                self.categories = [
+                    {"name": "Home", "icon": "🏠", "color": "#FFFFFF", "count": 0},
+                    {"name": "Completed", "icon": "☑", "color": "#FFFFFF", "count": 0},
+                    {"name": "Personal", "icon": "🟣", "color": "#c586ff", "count": 0},
+                    {"name": "Work", "icon": "🟦", "color": "#5ac8fa", "count": 0},
+                    {"name": "Diet", "icon": "👍", "color": "#ffcc00", "count": 0}
+                ]
+                print("No categories file found, using default categories")
+        except Exception as e:
+            messagebox.showerror("Error Loading Data", f"Failed to load data: {str(e)}")
+            # Fall back to empty data
+            self.tasks = []
+            self.categories = [
+                {"name": "Home", "icon": "🏠", "color": "#FFFFFF", "count": 0},
+                {"name": "Completed", "icon": "☑", "color": "#FFFFFF", "count": 0},
+                {"name": "Personal", "icon": "🟣", "color": "#c586ff", "count": 0},
+                {"name": "Work", "icon": "🟦", "color": "#5ac8fa", "count": 0},
+                {"name": "Diet", "icon": "👍", "color": "#ffcc00", "count": 0}
+            ]
+
+    def save_data(self, event=None):
+        """Save tasks to file"""
+        try:
+            with open(self.tasks_file, 'w') as f:
+                json.dump(self.tasks, f, indent=2)
+            print(f"Saved {len(self.tasks)} tasks to {self.tasks_file}")
+            return True
+        except Exception as e:
+            messagebox.showerror("Error Saving Data", f"Failed to save tasks: {str(e)}")
+            return False
+
+    def save_categories(self):
+        """Save categories to file"""
+        try:
+            with open(self.categories_file, 'w') as f:
+                json.dump(self.categories, f, indent=2)
+            print(f"Saved {len(self.categories)} categories to {self.categories_file}")
+            return True
+        except Exception as e:
+            messagebox.showerror("Error Saving Data", f"Failed to save categories: {str(e)}")
+            return False
+
+    def on_close(self):
+        """Handle application closing"""
+        # Save data before closing
+        if self.save_data() and self.save_categories():
+            self.root.destroy()
 
     def create_menu(self):
         """Create application menu"""
@@ -491,8 +572,12 @@ class AdvancedTodoApp:
         # File menu
         file_menu = tk.Menu(menubar, tearoff=0)
         file_menu.add_command(label="New Task", command=self.show_add_task_dialog, accelerator="Ctrl+N")
+        file_menu.add_command(label="Save", command=self.save_data, accelerator="Ctrl+S")
         file_menu.add_separator()
-        file_menu.add_command(label="Exit", command=self.root.quit)
+        file_menu.add_command(label="Export Tasks", command=self.export_tasks)
+        file_menu.add_command(label="Import Tasks", command=self.import_tasks)
+        file_menu.add_separator()
+        file_menu.add_command(label="Exit", command=self.on_close)
         menubar.add_cascade(label="File", menu=file_menu)
         
         # Edit menu
@@ -510,6 +595,51 @@ class AdvancedTodoApp:
         
         self.root.config(menu=menubar)
 
+    def export_tasks(self):
+        """Export tasks to a user-specified file"""
+        from tkinter import filedialog
+        
+        file_path = filedialog.asksaveasfilename(
+            defaultextension=".json",
+            filetypes=[("JSON files", "*.json"), ("All files", "*.*")],
+            title="Export Tasks"
+        )
+        
+        if file_path:
+            try:
+                with open(file_path, 'w') as f:
+                    json.dump(self.tasks, f, indent=2)
+                messagebox.showinfo("Export Successful", f"Tasks exported to {file_path}")
+            except Exception as e:
+                messagebox.showerror("Export Error", f"Failed to export tasks: {str(e)}")
+
+    def import_tasks(self):
+        """Import tasks from a user-specified file"""
+        from tkinter import filedialog
+        
+        file_path = filedialog.askopenfilename(
+            defaultextension=".json",
+            filetypes=[("JSON files", "*.json"), ("All files", "*.*")],
+            title="Import Tasks"
+        )
+        
+        if file_path:
+            try:
+                with open(file_path, 'r') as f:
+                    imported_tasks = json.load(f)
+                
+                if messagebox.askyesno("Import Tasks", "Replace existing tasks or merge with them?\nYes = Replace, No = Merge"):
+                    self.tasks = imported_tasks
+                else:
+                    self.tasks.extend(imported_tasks)
+                
+                self.update_task_list()
+                self.update_category_counts()
+                self.save_data()
+                messagebox.showinfo("Import Successful", f"Successfully imported tasks from {file_path}")
+            except Exception as e:
+                messagebox.showerror("Import Error", f"Failed to import tasks: {str(e)}")
+
     def select_category(self, category):
         """Handle category selection"""
         self.current_category = category
@@ -517,16 +647,19 @@ class AdvancedTodoApp:
 
     def clear_all_tasks(self):
         """Clear all tasks after confirmation"""
-        if messagebox.askyesno("Confirm", "Are you sure you want to clear all tasks?"):
+        if messagebox.askyesno("Confirm", "Are you sure you want to clear all tasks? This action cannot be undone."):
             self.tasks = []
             self.update_task_list()
             self.update_category_counts()
+            self.save_data()  # Save after clearing tasks
+            messagebox.showinfo("Tasks Cleared", "All tasks have been cleared and changes saved.")
 
     def toggle_task_completion(self, task):
         """Toggle task completion status"""
         task["completed"] = not task.get("completed", False)
         self.update_task_list()
         self.update_category_counts()
+        self.save_data()  # Save after toggling completion
 
     def delete_task(self, task):
         """Delete a task"""
@@ -534,6 +667,7 @@ class AdvancedTodoApp:
             self.tasks.remove(task)
             self.update_task_list()
             self.update_category_counts()
+            self.save_data()  # Save after deleting task
 
     def view_task_details(self, task):
         """View and edit task details"""
@@ -590,6 +724,7 @@ class AdvancedTodoApp:
             task["completed"] = completed_var.get()
             self.update_task_list()
             self.update_category_counts()
+            self.save_data()  # Save after updating task
             dialog.destroy()
         
         # Save button
@@ -607,19 +742,27 @@ class AdvancedTodoApp:
         ).pack(pady=20)
 
     def update_greeting(self):
-        """Update greeting"""
-        self.greeting_label.configure(text="Hey there! 👋")
+        """Update greeting based on time of day"""
+        hour = datetime.now().hour
+        
+        if 5 <= hour < 12:
+            greeting = "Good morning! 🌞"
+        elif 12 <= hour < 18:
+            greeting = "Good afternoon! 🌤️"
+        else:
+            greeting = "Good evening! 🌙"
+            
+        self.greeting_label.configure(text=greeting)
 
 if __name__ == "__main__":
     root = tk.Tk()
     
     # Configure custom styles
     style = ttk.Style()
-    style.configure(
-        "Custom.TCheckbutton",
-        background="#ffffff",
-        foreground="#202124"
-    )
+    style.configure("Custom.TCheckbutton", background="#f0f2f5", foreground="#202124")
     
     app = AdvancedTodoApp(root)
-    root.mainloop() 
+    root.mainloop()
+
+
+
