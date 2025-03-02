@@ -249,9 +249,15 @@ class AdvancedTodoApp:
     def add_task(self):
         task = self.task_var.get().strip()
         if task:
-            self.tasks.append(task)
-            self.task_listbox.insert(tk.END, task)
-            self.task_var.set("")  # Clear entry
+            # Create task in dictionary format
+            new_task = {
+                "title": task,
+                "category": "Home",
+                "completed": False
+            }
+            self.tasks.append(new_task)
+            self.update_task_list()
+            self.update_category_counts()
             self.save_data()  # Save after adding task
         else:
             messagebox.showwarning("Invalid Input", "Please enter a task!")
@@ -504,8 +510,20 @@ class AdvancedTodoApp:
             # Load tasks
             if os.path.exists(self.tasks_file):
                 with open(self.tasks_file, 'r') as f:
-                    self.tasks = json.load(f)
-                print(f"Loaded {len(self.tasks)} tasks from {self.tasks_file}")
+                    loaded_tasks = json.load(f)
+                    # Convert any string tasks to dictionary format
+                    self.tasks = []
+                    for task in loaded_tasks:
+                        if isinstance(task, str):
+                            # Convert string task to dictionary format
+                            self.tasks.append({
+                                "title": task,
+                                "category": "Home",
+                                "completed": False
+                            })
+                        else:
+                            self.tasks.append(task)
+                    print(f"Loaded {len(self.tasks)} tasks from {self.tasks_file}")
             else:
                 self.tasks = []
                 print("No tasks file found, starting with empty tasks list")
